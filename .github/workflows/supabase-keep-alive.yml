@@ -1,0 +1,16 @@
+name: Supabase Keep Alive
+
+on:
+  schedule:
+    # Roda a cada 5 dias às 00:00 UTC
+    - cron: '0 0 */5 * *'
+  workflow_dispatch: # Permite rodar manualmente pelo painel do GitHub
+
+jobs:
+  ping:
+    runs-level: ubuntu-latest
+    steps:
+      - name: Enviar Ping para o Supabase
+        run: |
+          curl -i -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/" \
+          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}"
