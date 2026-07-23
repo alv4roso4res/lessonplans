@@ -1,14 +1,13 @@
 name: Supabase Keep Alive
-
+# Este workflow envia um ping para o Supabase a cada 5 dias para manter a instância ativa.
 on:
   schedule:
     # Roda a cada 5 dias às 00:00 UTC
     - cron: '0 0 */5 * *'
-  workflow_dispatch: # Permite rodar manualmente pelo painel do GitHub
-
+  workflow_dispatch:
 jobs:
   ping:
-    runs-level: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Enviar Ping para o Supabase
         run: |
