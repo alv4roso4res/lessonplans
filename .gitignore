@@ -14,8 +14,13 @@ dist
 dist-ssr
 *.local
 .env
-supabase
 package-lock.json
+
+# Supabase: versiona as edge functions, ignora estado local da CLI e segredos
+supabase/.branches
+supabase/.temp
+supabase/.env
+
 
 # Editor directories and files
 .vscode/*

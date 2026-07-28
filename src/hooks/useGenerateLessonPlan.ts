@@ -18,24 +18,29 @@ export function useGenerateLessonPlan({ userId, onGenerated }: UseGenerateLesson
 
     async function generatePlan(e: React.FormEvent) {
         e.preventDefault();
-        if (!userId || !topic || !gradeLevel || !subject) return;
+
+        const tema = topic.trim();
+        const anoEscolar = gradeLevel.trim();
+        const disciplina = subject.trim();
+
+        if (!userId || !tema || !anoEscolar || !disciplina) return;
 
         setLoading(true);
         setError(null);
 
         try {
             const content = await generateLessonPlanContent({
-                tema: topic,
-                ano_escolar: gradeLevel,
-                disciplina: subject,
+                tema,
+                ano_escolar: anoEscolar,
+                disciplina,
             });
 
             const newPlan = await saveLessonPlan({
                 user_id: userId,
-                title: topic,
-                topic,
-                grade_level: gradeLevel,
-                subject,
+                title: tema,
+                topic: tema,
+                grade_level: anoEscolar,
+                subject: disciplina,
                 content,
             });
 

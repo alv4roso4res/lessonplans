@@ -94,9 +94,25 @@ Execute o script contido em `supabase_schema.sql` no Editor SQL do seu projeto S
 
 ## Edge Function
 
-A edge function que faz a chamada na Gemini API — mantendo a chave segura como variável de ambiente dentro do próprio Supabase — está versionada em [`supabase/functions/gemini/index.ts`](supabase/functions/gemini/index.ts).
+A edge function que faz a chamada na Gemini API — mantendo a chave segura como variável de ambiente dentro do próprio Supabase — está em [`supabase/functions/gemini/index.ts`](supabase/functions/gemini/index.ts).
 
-Ela propaga erros da Gemini API (chave inválida, cota estourada, resposta bloqueada) como HTTP 502 com a mensagem real no corpo, em vez de devolver 200 com texto de fallback.
+Ela concentra as barreiras de segurança do lado servidor:
+
+-   **Autenticação:** exige um usuário real via `auth.getUser(jwt)`. Só `verify_jwt` não bastaria — a anon key é um JWT válido e é pública (vai no bundle do frontend).
+-   **CORS restrito:** apenas as origens em `ALLOWED_ORIGINS` recebem o header `Access-Control-Allow-Origin`.
+-   **Prompt montado no servidor:** o cliente envia apenas `{ tema, ano_escolar, disciplina }`, cada campo limitado a 120 caracteres e higienizado (sem aspas nem caracteres de controle) antes de ser interpolado — o texto enviado ao modelo nunca é controlado pelo cliente.
+-   **Erros genéricos:** falhas da Gemini API (chave inválida, cota estourada, resposta bloqueada) viram HTTP 502 com mensagem genérica; o detalhe real fica só nos logs da função.
+
+Variáveis de ambiente da função:
+
+```bash
+supabase secrets set GEMINI_API_KEY="sua_chave"
+# opcionais
+supabase secrets set ALLOWED_ORIGINS="https://lessonplans.vercel.app,http://localhost:5173"
+supabase secrets set GEMINI_MODEL="gemini-3.5-flash-lite"
+```
+
+`SUPABASE_URL` e `SUPABASE_ANON_KEY` são injetadas automaticamente pela plataforma.
 
 Para implantar:
 
@@ -113,7 +129,7 @@ Ou copie o conteúdo do arquivo no editor de Edge Functions do painel do Supabas
 src/
 ├── auth/          # Contextos e hooks de autenticação
 ├── components/    # Componentes UI (Radix) e seções da Landing Page
-├── gemini/        # Configuração e serviços da API de IA
+├── gemini/        # Invocação e parsing da IA (o prompt vive na edge function)
 ├── hooks/         # Hooks personalizados para lógica de negócio
 ├── lib/           # Utilitários (shadcn/tailwind-merge)
 ├── pages/         # Páginas da aplicação (Home, Login, Dashboard, Register)

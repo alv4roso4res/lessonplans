@@ -1,24 +1,38 @@
-import { buildLessonPlanPrompt, GEMINI_CONFIG } from "./gemini.config";
-import { RUBRICA_NIVEIS } from "../types/gemini";
-import type { GeminiRequest, GeminiResponse, LessonPlanContent } from "../types/gemini";
+import { LESSON_PLAN_FIELD_MAX_LENGTH, RUBRICA_NIVEIS } from "../types/gemini";
+import type { GeminiResponse, LessonPlanContent, LessonPlanRequest } from "../types/gemini";
 import { supabase } from "../services/supabase";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 
-export const askGemini = async (payload: GeminiRequest): Promise<string> => {
+// normalização de conveniência: a validação que vale é a da edge function,
+// que é quem monta o prompt (supabase/functions/gemini/index.ts)
+function normalizeRequest(params: LessonPlanRequest): LessonPlanRequest {
+    const entries = Object.entries(params) as [keyof LessonPlanRequest, string][];
+    const normalized = {} as LessonPlanRequest;
+
+    for (const [field, value] of entries) {
+        const trimmed = (value ?? "").trim();
+
+        if (!trimmed || trimmed.length > LESSON_PLAN_FIELD_MAX_LENGTH) {
+            throw new Error(
+                `Preencha tema, ano escolar e disciplina com até ${LESSON_PLAN_FIELD_MAX_LENGTH} caracteres.`
+            );
+        }
+
+        normalized[field] = trimmed;
+    }
+
+    return normalized;
+}
+
+export const askGemini = async (payload: LessonPlanRequest): Promise<string> => {
     const { data, error } = await supabase.functions.invoke<GeminiResponse>(
         "gemini",
-        {
-            body: {
-                ...payload,
-                config: {
-                    model: GEMINI_CONFIG.MODEL,
-                },
-            },
-        }
+        { body: payload }
     );
 
     if (error) {
-        // a edge function devolve { error: <mensagem real da Gemini API> } em não-2xx
+        // a edge function devolve { error: <mensagem genérica> } em não-2xx;
+        // o detalhe real fica nos logs dela
         let serverMessage: string | undefined;
         if (error instanceof FunctionsHttpError) {
             try {
@@ -73,13 +87,11 @@ function parseLessonPlanContent(text: string): LessonPlanContent {
     return content as LessonPlanContent;
 }
 
-// fluxo completo: prompt -> edge function -> extração/validação do JSON
-export const generateLessonPlanContent = async (params: {
-    tema: string;
-    ano_escolar: string;
-    disciplina: string;
-}): Promise<LessonPlanContent> => {
-    const prompt = buildLessonPlanPrompt(params);
-    const responseText = await askGemini({ prompt });
+// fluxo completo: campos validados -> edge function (monta o prompt) ->
+// extração/validação do JSON
+export const generateLessonPlanContent = async (
+    params: LessonPlanRequest
+): Promise<LessonPlanContent> => {
+    const responseText = await askGemini(normalizeRequest(params));
     return parseLessonPlanContent(responseText);
 };

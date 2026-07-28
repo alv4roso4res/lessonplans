@@ -1,7 +1,12 @@
-export interface GeminiRequest {
-    prompt: string;
-    context?: string;
+// o prompt é montado dentro da edge function; o cliente só envia estes campos
+export interface LessonPlanRequest {
+    tema: string;
+    ano_escolar: string;
+    disciplina: string;
 }
+
+// mesmo limite validado na edge function (supabase/functions/gemini/index.ts)
+export const LESSON_PLAN_FIELD_MAX_LENGTH = 120;
 
 export interface GeminiResponse {
     text: string;

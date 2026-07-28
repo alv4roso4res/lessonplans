@@ -1,7 +1,7 @@
 import {useAuth} from "../auth/hooks/useAuth";
 import {useLessonPlans} from "../hooks/useLessonPlans";
 import {useGenerateLessonPlan} from "../hooks/useGenerateLessonPlan";
-import {RUBRICA_NIVEIS, type RubricaNivel} from "../types/gemini";
+import {LESSON_PLAN_FIELD_MAX_LENGTH, RUBRICA_NIVEIS, type RubricaNivel} from "../types/gemini";
 import {useState} from "react";
 import {Header} from "../components/Header.tsx";
 import { Pencil, Trash2 } from "lucide-react";
@@ -78,6 +78,7 @@ export default function Dashboard() {
                                         <input
                                             type="text"
                                             required
+                                            maxLength={LESSON_PLAN_FIELD_MAX_LENGTH}
                                             value={field.value}
                                             onChange={(e) => field.setter(e.target.value)}
                                             placeholder={field.placeholder}
