@@ -1,18 +1,11 @@
 import {useAuth} from "../auth/hooks/useAuth";
 import {useLessonPlans} from "../hooks/useLessonPlans";
 import {useGenerateLessonPlan} from "../hooks/useGenerateLessonPlan";
-import {LESSON_PLAN_FIELD_MAX_LENGTH, RUBRICA_NIVEIS, type RubricaNivel} from "../types/gemini";
+import {LESSON_PLAN_FIELD_MAX_LENGTH} from "../types/gemini";
 import {useState} from "react";
 import {Header} from "../components/Header.tsx";
-import { Pencil, Trash2 } from "lucide-react";
+import {LessonPlanCard} from "../components/LessonPlanCard";
 import {Button} from "@/components/ui/button";
-
-// apresentação de cada nível da rubrica (a ordem canônica vem de RUBRICA_NIVEIS)
-const RUBRICA_STYLES: Record<RubricaNivel, string> = {
-    "Em Desenvolvimento": "bg-red-500/10 border-red-500/20 text-red-400",
-    "Bom": "bg-yellow-500/10 border-yellow-500/20 text-yellow-400",
-    "Excelente": "bg-green-500/10 border-green-500/20 text-green-400",
-};
 
 export default function Dashboard() {
     const {user} = useAuth();
@@ -22,6 +15,8 @@ export default function Dashboard() {
     const {
         plans,
         fetching,
+        error: plansError,
+        refetch,
         addPlan,
         deletePlan,
         renamePlan,
@@ -125,6 +120,25 @@ export default function Dashboard() {
                                 <p className="py-12 text-center text-muted-foreground">
                                     Carregando seus planos...
                                 </p>
+                            ) : plansError ? (
+                                /* o erro vem antes do vazio de propósito: tratado
+                                   depois, uma falha de leitura apareceria como
+                                   "você não tem planos" e o professor pensaria
+                                   que perdeu o conteúdo */
+                                <div
+                                    role="alert"
+                                    className="rounded-xl border border-destructive/30 bg-destructive/10 p-12 text-center"
+                                >
+                                    <p className="text-sm text-destructive">{plansError}</p>
+
+                                    <Button
+                                        variant="secondary"
+                                        className="mt-4"
+                                        onClick={refetch}
+                                    >
+                                        Tentar novamente
+                                    </Button>
+                                </div>
                             ) : plans.length === 0 ? (
                                 <div
                                     className="rounded-xl border-2 border-dashed border-border bg-card p-12 text-center text-muted-foreground">
@@ -133,121 +147,21 @@ export default function Dashboard() {
                             ) : (
                                 <div className="grid gap-4">
                                     {plans.map((plan) => (
-                                        <div
+                                        <LessonPlanCard
                                             key={plan.id}
-                                            className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
-                                        >
-                                            <div className="flex items-center justify-between gap-4 p-4">
-                                                <button
-                                                    onClick={() =>
-                                                        setSelectedPlanId(
-                                                            selectedPlanId === plan.id ? null : plan.id
-                                                        )
-                                                    }
-                                                    className="flex-1 text-left"
-                                                >
-                                                    <h3 className="font-bold hover:cursor-pointer hover:text-primary transition-colors">
-                                                        {plan.title}
-                                                    </h3>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {plan.subject} • {plan.grade_level}
-                                                    </p>
-                                                </button>
-
-                                                <div className="flex gap-1">
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const newTitle = prompt(
-                                                                "Novo título do plano:",
-                                                                plan.title
-                                                            );
-                                                            if (newTitle && newTitle !== plan.title) {
-                                                                renamePlan(plan.id, newTitle);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (
-                                                                confirm(
-                                                                    "Deseja realmente excluir este plano?"
-                                                                )
-                                                            ) {
-                                                                deletePlan(plan.id);
-                                                                if (selectedPlanId === plan.id)
-                                                                    setSelectedPlanId(null);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-
-                                            {selectedPlanId === plan.id && (
-                                                <div className="space-y-4 border-t border-border bg-background p-6">
-                                                    {[
-                                                        {
-                                                            title: "Introdução Lúdica",
-                                                            content: plan.content.introducao_ludica,
-                                                        },
-                                                        {
-                                                            title: "Objetivo (BNCC)",
-                                                            content: plan.content.objetivo_bncc,
-                                                        },
-                                                        {
-                                                            title: "Passo a Passo",
-                                                            content: plan.content.passo_a_passo,
-                                                            pre: true,
-                                                        },
-                                                    ].map((section) => (
-                                                        <div key={section.title}>
-                                                            <h4 className="font-bold text-primary">
-                                                                {section.title}
-                                                            </h4>
-                                                            <p
-                                                                className={`text-muted-foreground ${
-                                                                    section.pre ? "whitespace-pre-wrap" : ""
-                                                                }`}
-                                                            >
-                                                                {section.content}
-                                                            </p>
-                                                        </div>
-                                                    ))}
-
-                                                    {/* Rubrica */}
-                                                    <div>
-                                                        <h4 className="font-bold text-primary">Avaliação (Rubrica)</h4>
-
-                                                        <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
-                                                            {RUBRICA_NIVEIS.map((key) => (
-                                                                <div
-                                                                    key={key}
-                                                                    className={`rounded-lg border p-3 ${RUBRICA_STYLES[key]}`}
-                                                                >
-                <span className="text-xs font-bold uppercase">
-                    {key}
-                </span>
-
-                                                                    <p className="mt-1 text-sm text-muted-foreground">
-                                                                        {plan.content.rubrica_avaliacao[key]}
-                                                                    </p>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
+                                            plan={plan}
+                                            isExpanded={selectedPlanId === plan.id}
+                                            onToggle={() =>
+                                                setSelectedPlanId(
+                                                    selectedPlanId === plan.id ? null : plan.id
+                                                )
+                                            }
+                                            onRename={renamePlan}
+                                            onDelete={(id) => {
+                                                deletePlan(id);
+                                                if (selectedPlanId === id) setSelectedPlanId(null);
+                                            }}
+                                        />
                                     ))}
                                 </div>
                             )}

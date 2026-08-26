@@ -1,4 +1,4 @@
-import { LESSON_PLAN_FIELD_MAX_LENGTH, RUBRICA_NIVEIS } from "../types/gemini";
+import { LESSON_PLAN_FIELD_MAX_LENGTH, isLessonPlanContent } from "../types/gemini";
 import type { GeminiResponse, LessonPlanContent, LessonPlanRequest } from "../types/gemini";
 import { supabase } from "../services/supabase";
 import { FunctionsHttpError } from "@supabase/supabase-js";
@@ -69,22 +69,12 @@ function parseLessonPlanContent(text: string): LessonPlanContent {
         throw new Error("A resposta da IA não é um JSON válido.");
     }
 
-    const content = parsed as Partial<LessonPlanContent> | null;
-    const rubrica = content?.rubrica_avaliacao;
-
-    const isValid =
-        !!content &&
-        typeof content.introducao_ludica === "string" &&
-        typeof content.objetivo_bncc === "string" &&
-        typeof content.passo_a_passo === "string" &&
-        !!rubrica &&
-        RUBRICA_NIVEIS.every((nivel) => typeof rubrica[nivel] === "string");
-
-    if (!isValid) {
+    // mesmo guard que valida o JSONB na leitura (src/types/gemini.ts)
+    if (!isLessonPlanContent(parsed)) {
         throw new Error("A resposta da IA veio em um formato inesperado.");
     }
 
-    return content as LessonPlanContent;
+    return parsed;
 }
 
 // fluxo completo: campos validados -> edge function (monta o prompt) ->
