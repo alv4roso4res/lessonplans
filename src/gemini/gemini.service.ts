@@ -53,24 +53,88 @@ export const askGemini = async (payload: LessonPlanRequest): Promise<string> => 
     return data.text;
 };
 
-// remove cercas de markdown (```json ... ```) que o modelo pode incluir
+// remove cercas de markdown (```json ... ```) e qualquer texto que o modelo
+// tenha escrito antes/depois do objeto, recortando do primeiro `{` ao último `}`
 function extractJson(text: string): string {
-    return text
-        .replace(/```json/g, "")
+    const withoutFences = text
+        .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
+
+    const start = withoutFences.indexOf("{");
+    const end = withoutFences.lastIndexOf("}");
+
+    if (start === -1 || end <= start) return withoutFences;
+
+    return withoutFences.slice(start, end + 1);
+}
+
+/**
+ * Escapa caracteres de controle que estejam DENTRO de strings do JSON.
+ *
+ * O prompt pede um roteiro "pulando linhas", e o modelo às vezes atende com
+ * quebras de linha cruas dentro do valor de `passo_a_passo` — que são JSON
+ * inválido ("Bad control character in string literal") e derrubavam a geração
+ * inteira. Como é uma resposta amostrada (temperature > 0), isso acontece de
+ * forma intermitente: o mesmo build funciona em uma chamada e falha na
+ * seguinte. Recuperar aqui é mais barato que perder o plano já gerado.
+ */
+function escapeControlCharsInStrings(text: string): string {
+    let out = "";
+    let inString = false;
+    let escaped = false;
+
+    for (const char of text) {
+        if (escaped) {
+            out += char;
+            escaped = false;
+            continue;
+        }
+
+        if (char === "\\") {
+            out += char;
+            escaped = inString;
+            continue;
+        }
+
+        if (char === '"') {
+            inString = !inString;
+            out += char;
+            continue;
+        }
+
+        if (inString && char < " ") {
+            // JSON.stringify já escreve o controle na forma que o JSON aceita
+            // ("\n", "\u0001", ...); as aspas que ele acrescenta saem fora
+            out += JSON.stringify(char).slice(1, -1);
+            continue;
+        }
+
+        out += char;
+    }
+
+    return out;
 }
 
 function parseLessonPlanContent(text: string): LessonPlanContent {
+    const candidate = extractJson(text);
+
     let parsed: unknown;
     try {
-        parsed = JSON.parse(extractJson(text));
+        parsed = JSON.parse(candidate);
     } catch {
-        throw new Error("A resposta da IA não é um JSON válido.");
+        try {
+            parsed = JSON.parse(escapeControlCharsInStrings(candidate));
+        } catch {
+            // sem a resposta bruta no console não dá para saber o que a IA devolveu
+            console.error("Resposta da IA não parseável:", text);
+            throw new Error("A resposta da IA não é um JSON válido.");
+        }
     }
 
     // mesmo guard que valida o JSONB na leitura (src/types/gemini.ts)
     if (!isLessonPlanContent(parsed)) {
+        console.error("Resposta da IA em formato inesperado:", parsed);
         throw new Error("A resposta da IA veio em um formato inesperado.");
     }
 

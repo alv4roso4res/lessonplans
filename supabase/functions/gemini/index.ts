@@ -70,8 +70,30 @@ function normalizeField(value: unknown): string | null {
   return cleaned;
 }
 
+// shape exigido do modelo. Mantenha em sincronia com LessonPlanContent /
+// RUBRICA_NIVEIS (src/types/gemini.ts) e com o exemplo do prompt abaixo.
+const LESSON_PLAN_SCHEMA = {
+  type: "object",
+  properties: {
+    introducao_ludica: { type: "string" },
+    objetivo_bncc: { type: "string" },
+    passo_a_passo: { type: "string" },
+    rubrica_avaliacao: {
+      type: "object",
+      properties: {
+        "Excelente": { type: "string" },
+        "Bom": { type: "string" },
+        "Em Desenvolvimento": { type: "string" },
+      },
+      required: ["Excelente", "Bom", "Em Desenvolvimento"],
+    },
+  },
+  required: ["introducao_ludica", "objetivo_bncc", "passo_a_passo", "rubrica_avaliacao"],
+  propertyOrdering: ["introducao_ludica", "objetivo_bncc", "passo_a_passo", "rubrica_avaliacao"],
+};
+
 function buildLessonPlanPrompt({ tema, ano_escolar, disciplina }: LessonPlanRequest): string {
-  return `Você é um especialista em pedagogia e na BNCC. Crie um plano de aula para a disciplina "${disciplina}", destinado ao "${ano_escolar}", com o tema "${tema}". Sua resposta DEVE ser um objeto JSON, sem nenhum texto ou formatação adicional fora dele. O JSON deve ter EXATAMENTE a seguinte estrutura: {"introducao_ludica": "Uma introdução criativa e curta para o tema.", "objetivo_bncc": "Um objetivo de aprendizagem claro, incluindo o código da habilidade da BNCC (ex: EF03CI02).", "passo_a_passo": "Um roteiro detalhado da atividade em formato de texto simples. Não use asteriscos (*) e nem hashtags (#), separe os tópicos em números e pulando linhas (exemplo: 1) Inicio \n 2)Passo a passo)", "rubrica_avaliacao": {"Excelente": "Descrição para o critério 'Excelente'.", "Bom": "Descrição para o critério 'Bom'.", "Em Desenvolvimento": "Descrição para o critério 'Em Desenvolvimento'."}}`;
+  return `Você é um especialista em pedagogia e na BNCC. Crie um plano de aula para a disciplina "${disciplina}", destinado ao "${ano_escolar}", com o tema "${tema}". Sua resposta DEVE ser um objeto JSON, sem nenhum texto ou formatação adicional fora dele. O JSON deve ter EXATAMENTE a seguinte estrutura: {"introducao_ludica": "Uma introdução criativa e curta para o tema.", "objetivo_bncc": "Um objetivo de aprendizagem claro, incluindo o código da habilidade da BNCC (ex: EF03CI02).", "passo_a_passo": "Um roteiro detalhado da atividade em formato de texto simples. Não use asteriscos (*) e nem hashtags (#), separe os tópicos em números, um por linha, escapando a quebra de linha como \\n dentro da string JSON (exemplo: 1) Inicio\\n2) Passo a passo). Nunca escreva uma quebra de linha literal dentro de uma string do JSON", "rubrica_avaliacao": {"Excelente": "Descrição para o critério 'Excelente'.", "Bom": "Descrição para o critério 'Bom'.", "Em Desenvolvimento": "Descrição para o critério 'Em Desenvolvimento'."}}`;
 }
 
 Deno.serve(async (req) => {
@@ -155,6 +177,12 @@ Deno.serve(async (req) => {
           }],
           generationConfig: {
             temperature: 0.7,
+            // saída estruturada: a API passa a garantir JSON sintaticamente
+            // válido (com as quebras de linha já escapadas). Sem isto o modelo
+            // devolvia, de vez em quando, quebras de linha cruas dentro de
+            // `passo_a_passo` e o JSON.parse do cliente estourava.
+            responseMimeType: "application/json",
+            responseSchema: LESSON_PLAN_SCHEMA,
           }
         }),
       }
